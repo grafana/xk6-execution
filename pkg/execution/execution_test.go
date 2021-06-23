@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestExecutionStatsVUSharing(t *testing.T) {
+func TestExecutionInfoVUSharing(t *testing.T) {
 	t.Parallel()
 	script := []byte(`
 		import exec from 'k6/x/execution';
@@ -58,14 +58,14 @@ func TestExecutionStatsVUSharing(t *testing.T) {
 		};
 
 		export function cvus() {
-			const stats = Object.assign({scenario: 'cvus'}, exec.getVUStats());
-			console.log(JSON.stringify(stats));
+			const info = Object.assign({scenario: 'cvus'}, exec.vu);
+			console.log(JSON.stringify(info));
 			sleep(0.2);
 		};
 
 		export function carr() {
-			const stats = Object.assign({scenario: 'carr'}, exec.getVUStats());
-			console.log(JSON.stringify(stats));
+			const info = Object.assign({scenario: 'carr'}, exec.vu);
+			console.log(JSON.stringify(info));
 		};
 `)
 
@@ -136,7 +136,7 @@ func TestExecutionStatsVUSharing(t *testing.T) {
 	}
 }
 
-func TestExecutionStatsScenarioIter(t *testing.T) {
+func TestExecutionInfoScenarioIter(t *testing.T) {
 	t.Parallel()
 	script := []byte(`
 		import exec from 'k6/x/execution';
@@ -166,13 +166,13 @@ func TestExecutionStatsScenarioIter(t *testing.T) {
 		};
 
 		export function pvu() {
-			const stats = Object.assign({VUID: __VU}, exec.getScenarioStats());
-			console.log(JSON.stringify(stats));
+			const info = Object.assign({VUID: __VU}, exec.scenario);
+			console.log(JSON.stringify(info));
 		}
 
 		export function carr() {
-			const stats = Object.assign({VUID: __VU}, exec.getScenarioStats());
-			console.log(JSON.stringify(stats));
+			const info = Object.assign({VUID: __VU}, exec.scenario);
+			console.log(JSON.stringify(info));
 		};
 `)
 
@@ -248,9 +248,8 @@ func TestSharedIterationsStable(t *testing.T) {
 			},
 		};
 		export default function () {
-			const stats = exec.getScenarioStats();
 			sleep(1);
-			console.log(JSON.stringify(Object.assign({VUID: __VU}, stats)));
+			console.log(JSON.stringify(Object.assign({VUID: __VU}, exec.scenario)));
 		}
 `)
 
@@ -305,7 +304,7 @@ func TestSharedIterationsStable(t *testing.T) {
 	}
 }
 
-func TestExecutionStats(t *testing.T) {
+func TestExecutionInfo(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -315,48 +314,47 @@ func TestExecutionStats(t *testing.T) {
 		var exec = require('k6/x/execution');
 
 		exports.default = function() {
-			var vuStats = exec.getVUStats();
-			if (vuStats.id !== 1) throw new Error('unexpected VU ID: '+vuStats.id);
-			if (vuStats.idGlobal !== 10) throw new Error('unexpected global VU ID: '+vuStats.idGlobal);
-			if (vuStats.iteration !== 0) throw new Error('unexpected VU iteration: '+vuStats.iteration);
-			if (vuStats.iterationScenario !== 0) throw new Error('unexpected scenario iteration: '+vuStats.iterationScenario);
+			if (exec.vu.id !== 1) throw new Error('unexpected VU ID: '+exec.vu.id);
+			if (exec.vu.idGlobal !== 10) throw new Error('unexpected global VU ID: '+exec.vu.idGlobal);
+			if (exec.vu.iteration !== 0) throw new Error('unexpected VU iteration: '+exec.vu.iteration);
+			if (exec.vu.iterationScenario !== 0) throw new Error('unexpected scenario iteration: '+exec.vu.iterationScenario);
 		}`},
 		{name: "vu_err", script: `
 		var exec = require('k6/x/execution');
-		exec.getVUStats();
+		exec.vu;
 		`, expErr: "getting VU information in the init context is not supported"},
 		{name: "scenario_ok", script: `
 		var exec = require('k6/x/execution');
 		var sleep = require('k6').sleep;
 
 		exports.default = function() {
-			var ss = exec.getScenarioStats();
+			var si = exec.scenario;
 			sleep(0.1);
-			if (ss.name !== 'default') throw new Error('unexpected scenario name: '+ss.name);
-			if (ss.executor !== 'test-exec') throw new Error('unexpected executor: '+ss.executor);
-			if (ss.startTime > new Date().getTime()) throw new Error('unexpected startTime: '+ss.startTime);
-			if (ss.progress !== 0.1) throw new Error('unexpected progress: '+ss.progress);
-			if (ss.iteration !== 3) throw new Error('unexpected scenario local iteration: '+ss.iteration);
-			if (ss.iterationGlobal !== 4) throw new Error('unexpected scenario local iteration: '+ss.iterationGlobal);
+			if (si.name !== 'default') throw new Error('unexpected scenario name: '+si.name);
+			if (si.executor !== 'test-exec') throw new Error('unexpected executor: '+si.executor);
+			if (si.startTime > new Date().getTime()) throw new Error('unexpected startTime: '+si.startTime);
+			if (si.progress !== 0.1) throw new Error('unexpected progress: '+si.progress);
+			if (si.iteration !== 3) throw new Error('unexpected scenario local iteration: '+si.iteration);
+			if (si.iterationGlobal !== 4) throw new Error('unexpected scenario local iteration: '+si.iterationGlobal);
 		}`},
 		{name: "scenario_err", script: `
 		var exec = require('k6/x/execution');
-		exec.getScenarioStats();
+		exec.scenario;
 		`, expErr: "getting scenario information in the init context is not supported"},
 		{name: "test_ok", script: `
 		var exec = require('k6/x/execution');
 
 		exports.default = function() {
-			var ts = exec.getTestInstanceStats();
-			if (ts.duration !== 0) throw new Error('unexpected test duration: '+ts.duration);
-			if (ts.vusActive !== 1) throw new Error('unexpected vusActive: '+ts.vusActive);
-			if (ts.vusMax !== 0) throw new Error('unexpected vusMax: '+ts.vusMax);
-			if (ts.iterationsCompleted !== 0) throw new Error('unexpected iterationsCompleted: '+ts.iterationsCompleted);
-			if (ts.iterationsInterrupted !== 0) throw new Error('unexpected iterationsInterrupted: '+ts.iterationsInterrupted);
+			var ti = exec.test;
+			if (ti.duration !== 0) throw new Error('unexpected test duration: '+ti.duration);
+			if (ti.vusActive !== 1) throw new Error('unexpected vusActive: '+ti.vusActive);
+			if (ti.vusMax !== 0) throw new Error('unexpected vusMax: '+ti.vusMax);
+			if (ti.iterationsCompleted !== 0) throw new Error('unexpected iterationsCompleted: '+ti.iterationsCompleted);
+			if (ti.iterationsInterrupted !== 0) throw new Error('unexpected iterationsInterrupted: '+ti.iterationsInterrupted);
 		}`},
 		{name: "test_err", script: `
 		var exec = require('k6/x/execution');
-		exec.getTestInstanceStats();
+		exec.test;
 		`, expErr: "getting test information in the init context is not supported"},
 	}
 

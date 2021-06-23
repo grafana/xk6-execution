@@ -23,6 +23,7 @@ package execution
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/dop251/goja"
@@ -31,47 +32,101 @@ import (
 	"go.k6.io/k6/lib"
 )
 
-// Execution is a JS module to return information about the execution in progress.
-type Execution struct{}
+type (
+	// RootExecution is the global module instance that will create module
+	// instances for each VU.
+	RootExecution struct{}
+	// Execution is a JS module that returns information about the currently
+	// executing test run.
+	Execution struct{ *goja.Proxy }
+)
 
-// New returns a pointer to a new Execution.
-func New() *Execution {
+// NewModuleInstancePerVU fulfills the k6 modules.HasModuleInstancePerVU
+// interface so that each VU will get a separate copy of the module.
+func (*RootExecution) NewModuleInstancePerVU() interface{} {
 	return &Execution{}
 }
 
-// GetVUStats returns information about the currently executing VU.
-func (e *Execution) GetVUStats(ctx context.Context) (goja.Value, error) {
-	vuState := lib.GetState(ctx)
-	if vuState == nil {
-		return nil, errors.New("getting VU information in the init context is not supported")
-	}
+// New returns a pointer to a new RootExecution instance.
+func New() *RootExecution {
+	return &RootExecution{}
+}
 
-	rt := common.GetRuntime(ctx)
-	if rt == nil {
-		return nil, errors.New("goja runtime is nil in context")
-	}
+// WithContext fulfills the k6 modules.HasWithContext interface to allow
+// retrieving the VU, scenario and test state from the context used by each VU.
+// It initializes a goja.Proxy object for the per-VU module instance, which in
+// turn retrieves goja.DynamicObject instances for each property (scenario, vu,
+// test).
+func (e *Execution) WithContext(getCtx func() context.Context) {
+	keys := []string{"scenario", "vu", "test"}
 
-	stats := map[string]interface{}{
-		"id":        vuState.VUID,
-		"idGlobal":  vuState.VUIDGlobal,
-		"iteration": vuState.Iteration,
-		"iterationScenario": func() goja.Value {
-			return rt.ToValue(vuState.GetScenarioVUIter())
+	pcfg := goja.ProxyTrapConfig{
+		OwnKeys: func(target *goja.Object) *goja.Object {
+			ctx := getCtx()
+			rt := common.GetRuntime(ctx)
+			return rt.ToValue(keys).ToObject(rt)
+		},
+		Has: func(target *goja.Object, prop string) (available bool) {
+			return sort.SearchStrings(keys, prop) != -1
+		},
+		Get: func(target *goja.Object, prop string, r goja.Value) goja.Value {
+			return dynObjValue(getCtx, target, prop)
+		},
+		GetOwnPropertyDescriptor: func(target *goja.Object, prop string) (desc goja.PropertyDescriptor) {
+			desc.Enumerable, desc.Configurable = goja.FLAG_TRUE, goja.FLAG_TRUE
+			desc.Value = dynObjValue(getCtx, target, prop)
+			return desc
 		},
 	}
 
-	obj, err := newLazyJSObject(rt, stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	ctx := getCtx()
+	rt := common.GetRuntime(ctx)
+	proxy := rt.NewProxy(rt.NewObject(), &pcfg)
+	e.Proxy = &proxy
 }
 
-// GetScenarioStats returns information about the currently executing scenario.
-func (e *Execution) GetScenarioStats(ctx context.Context) (goja.Value, error) {
-	ss := lib.GetScenarioState(ctx)
+// dynObjValue returns a goja.Value for a specific prop on target.
+func dynObjValue(getCtx func() context.Context, target *goja.Object, prop string) goja.Value {
+	v := target.Get(prop)
+	if v != nil {
+		return v
+	}
+
+	ctx := getCtx()
+	rt := common.GetRuntime(ctx)
+	var (
+		dobj *execInfo
+		err  error
+	)
+	switch prop {
+	case "scenario":
+		dobj, err = newScenarioInfo(getCtx)
+	case "test":
+		dobj, err = newTestInfo(getCtx)
+	case "vu":
+		dobj, err = newVUInfo(getCtx)
+	}
+
+	if err != nil {
+		// TODO: Something less drastic?
+		common.Throw(rt, err)
+	}
+
+	if dobj != nil {
+		v = rt.NewDynamicObject(dobj)
+	}
+	if err := target.Set(prop, v); err != nil {
+		common.Throw(rt, err)
+	}
+	return v
+}
+
+// newScenarioInfo returns a goja.DynamicObject implementation to retrieve
+// information about the scenario the current VU is running in.
+func newScenarioInfo(getCtx func() context.Context) (*execInfo, error) {
+	ctx := getCtx()
 	vuState := lib.GetState(ctx)
+	ss := lib.GetScenarioState(ctx)
 	if ss == nil || vuState == nil {
 		return nil, errors.New("getting scenario information in the init context is not supported")
 	}
@@ -81,35 +136,40 @@ func (e *Execution) GetScenarioStats(ctx context.Context) (goja.Value, error) {
 		return nil, errors.New("goja runtime is nil in context")
 	}
 
-	var iterGlobal interface{}
-	if vuState.GetScenarioGlobalVUIter != nil {
-		iterGlobal = vuState.GetScenarioGlobalVUIter()
-	} else {
-		iterGlobal = goja.Null()
-	}
-
-	stats := map[string]interface{}{
-		"name":      ss.Name,
-		"executor":  ss.Executor,
-		"startTime": float64(ss.StartTime.UnixNano()) / 1e9,
-		"progress": func() goja.Value {
-			p, _ := ss.ProgressFn()
-			return rt.ToValue(p)
+	si := map[string]func() interface{}{
+		"name": func() interface{} {
+			ctx := getCtx()
+			ss := lib.GetScenarioState(ctx)
+			return ss.Name
 		},
-		"iteration":       vuState.GetScenarioLocalVUIter(),
-		"iterationGlobal": iterGlobal,
+		"executor": func() interface{} {
+			ctx := getCtx()
+			ss := lib.GetScenarioState(ctx)
+			return ss.Executor
+		},
+		"startTime": func() interface{} { return float64(ss.StartTime.UnixNano()) / 1e9 },
+		"progress": func() interface{} {
+			p, _ := ss.ProgressFn()
+			return p
+		},
+		"iteration": func() interface{} {
+			return vuState.GetScenarioLocalVUIter()
+		},
+		"iterationGlobal": func() interface{} {
+			if vuState.GetScenarioGlobalVUIter != nil {
+				return vuState.GetScenarioGlobalVUIter()
+			}
+			return goja.Null()
+		},
 	}
 
-	obj, err := newLazyJSObject(rt, stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	return newExecInfo(rt, si), nil
 }
 
-// GetTestInstanceStats returns test information for the current k6 instance.
-func (e *Execution) GetTestInstanceStats(ctx context.Context) (goja.Value, error) {
+// newTestInfo returns a goja.DynamicObject implementation to retrieve
+// information about the overall test run (local instance).
+func newTestInfo(getCtx func() context.Context) (*execInfo, error) {
+	ctx := getCtx()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
 		return nil, errors.New("getting test information in the init context is not supported")
@@ -120,48 +180,85 @@ func (e *Execution) GetTestInstanceStats(ctx context.Context) (goja.Value, error
 		return nil, errors.New("goja runtime is nil in context")
 	}
 
-	stats := map[string]interface{}{
-		"duration": func() goja.Value {
-			return rt.ToValue(float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond))
+	ti := map[string]func() interface{}{
+		"duration": func() interface{} {
+			return float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond)
 		},
-		"iterationsCompleted": func() goja.Value {
-			return rt.ToValue(es.GetFullIterationCount())
+		"iterationsCompleted": func() interface{} {
+			return es.GetFullIterationCount()
 		},
-		"iterationsInterrupted": func() goja.Value {
-			return rt.ToValue(es.GetPartialIterationCount())
+		"iterationsInterrupted": func() interface{} {
+			return es.GetPartialIterationCount()
 		},
-		"vusActive": func() goja.Value {
-			return rt.ToValue(es.GetCurrentlyActiveVUsCount())
+		"vusActive": func() interface{} {
+			return es.GetCurrentlyActiveVUsCount()
 		},
-		"vusMax": func() goja.Value {
-			return rt.ToValue(es.GetInitializedVUsCount())
+		"vusMax": func() interface{} {
+			return es.GetInitializedVUsCount()
 		},
 	}
 
-	obj, err := newLazyJSObject(rt, stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	return newExecInfo(rt, ti), nil
 }
 
-func newLazyJSObject(rt *goja.Runtime, data map[string]interface{}) (goja.Value, error) {
-	obj := rt.NewObject()
-
-	for k, v := range data {
-		if val, ok := v.(func() goja.Value); ok {
-			if err := obj.DefineAccessorProperty(k, rt.ToValue(val),
-				nil, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := obj.DefineDataProperty(k, rt.ToValue(v),
-				goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
-				return nil, err
-			}
-		}
+// newVUInfo returns a goja.DynamicObject implementation to retrieve
+// information about the currently executing VU.
+func newVUInfo(getCtx func() context.Context) (*execInfo, error) {
+	ctx := getCtx()
+	vuState := lib.GetState(ctx)
+	if vuState == nil {
+		return nil, errors.New("getting VU information in the init context is not supported")
 	}
 
-	return obj, nil
+	rt := common.GetRuntime(ctx)
+	if rt == nil {
+		return nil, errors.New("goja runtime is nil in context")
+	}
+
+	vi := map[string]func() interface{}{
+		"id":        func() interface{} { return vuState.VUID },
+		"idGlobal":  func() interface{} { return vuState.VUIDGlobal },
+		"iteration": func() interface{} { return vuState.Iteration },
+		"iterationScenario": func() interface{} {
+			return vuState.GetScenarioVUIter()
+		},
+	}
+
+	return newExecInfo(rt, vi), nil
 }
+
+// execInfo is a goja.DynamicObject implementation to lazily return data only
+// on property access.
+type execInfo struct {
+	rt   *goja.Runtime
+	obj  map[string]func() interface{}
+	keys []string
+}
+
+var _ goja.DynamicObject = &execInfo{}
+
+func newExecInfo(rt *goja.Runtime, obj map[string]func() interface{}) *execInfo {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	return &execInfo{obj: obj, keys: keys, rt: rt}
+}
+
+func (ei *execInfo) Get(key string) goja.Value {
+	if fn, ok := ei.obj[key]; ok {
+		return ei.rt.ToValue(fn())
+	}
+	return goja.Undefined()
+}
+
+func (ei *execInfo) Set(key string, val goja.Value) bool { return false }
+
+func (ei *execInfo) Has(key string) bool {
+	_, has := ei.obj[key]
+	return has
+}
+
+func (ei *execInfo) Delete(key string) bool { return false }
+
+func (ei *execInfo) Keys() []string { return ei.keys }

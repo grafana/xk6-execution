@@ -329,8 +329,8 @@ github.com/zyedidia/highlight v0.0.0-20170330143449-201131ce5cf5/go.mod h1:c1r+O
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.k6.io/k6 v0.31.2-0.20210510132435-c2958278a362/go.mod h1:WmqQqrJOnATU2o+vmmfPejQquY7DDsfUflLWUpu+LX0=
 go.k6.io/k6 v0.31.2-0.20210511090412-61f464b99a2d/go.mod h1:5BTMcTH7K+IEoBUPBRM15M9c97nBqeKzQfop868FMiw=
-go.k6.io/k6 v0.32.1-0.20210622082042-2039c5691bbe h1:k3IcFb/gUSo/XQPLdaaw7YJXBrPY/Y+AHEh3HtfXNy0=
-go.k6.io/k6 v0.32.1-0.20210622082042-2039c5691bbe/go.mod h1:SNG6/ZknLfIqNGbYUfORZT6sNdUuBJ15ntzt8jZloc0=
+go.k6.io/k6 v0.32.1-0.20210624122905-f24bd9a86806 h1:8DkI2JZ289voqprAvvDYPDTO49qpXsi4Pxeac+9zVH8=
+go.k6.io/k6 v0.32.1-0.20210624122905-f24bd9a86806/go.mod h1:SNG6/ZknLfIqNGbYUfORZT6sNdUuBJ15ntzt8jZloc0=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
