@@ -3,19 +3,23 @@ package execution
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/dop251/goja"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"go.k6.io/k6/core/local"
 	"go.k6.io/k6/js"
+	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modules"
+	"go.k6.io/k6/js/modulestest"
 	"go.k6.io/k6/lib"
 	"go.k6.io/k6/lib/testutils"
 	"go.k6.io/k6/loader"
@@ -354,7 +358,7 @@ func TestExecutionInfo(t *testing.T) {
 		}`},
 		{name: "test_err", script: `
 		var exec = require('k6/x/execution');
-		exec.test;
+		exec.test.duration;
 		`, expErr: "getting test information in the init context is not supported"},
 	}
 
@@ -401,4 +405,37 @@ func TestExecutionInfo(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func TestAbortTest(t *testing.T) { //nolint: tparallel
+	t.Parallel()
+
+	rt := goja.New()
+	ctx := common.WithRuntime(context.Background(), rt)
+	ctx = lib.WithState(ctx, &lib.State{})
+	mii := &modulestest.InstanceCore{
+		Runtime: rt,
+		InitEnv: &common.InitEnvironment{},
+		Ctx:     ctx,
+	}
+	m, ok := New().NewModuleInstance(mii).(*ModuleInstance)
+	require.True(t, ok)
+	require.NoError(t, rt.Set("exec", m.GetExports().Default))
+
+	prove := func(t *testing.T, script, reason string) {
+		_, err := rt.RunString(script)
+		require.NotNil(t, err)
+		var x *goja.InterruptedError
+		assert.ErrorAs(t, err, &x)
+		v, ok := x.Value().(*common.InterruptError)
+		require.True(t, ok)
+		require.Equal(t, v.Reason, reason)
+	}
+
+	t.Run("default reason", func(t *testing.T) { //nolint: paralleltest
+		prove(t, "exec.test.abort()", common.AbortTest)
+	})
+	t.Run("custom reason", func(t *testing.T) { //nolint: paralleltest
+		prove(t, `exec.test.abort("mayday")`, fmt.Sprintf("%s: mayday", common.AbortTest))
+	})
 }

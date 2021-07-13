@@ -21,7 +21,9 @@
 package execution
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/dop251/goja"
@@ -130,34 +132,52 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 	return newInfoObj(rt, si)
 }
 
+func getES(ctx context.Context, rt *goja.Runtime) *lib.ExecutionState {
+	es := lib.GetExecutionState(ctx)
+	if es == nil {
+		common.Throw(rt, errors.New("getting test information in the init context is not supported"))
+	}
+	return es
+}
+
 // newTestInfo returns a goja.Object with property accessors to retrieve
 // information about the overall test run (local instance).
 func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
-	es := lib.GetExecutionState(ctx)
-	if es == nil {
-		return nil, errors.New("getting test information in the init context is not supported")
-	}
-
 	rt := common.GetRuntime(ctx)
 	if rt == nil {
 		return nil, errors.New("goja runtime is nil in context")
 	}
 
 	ti := map[string]func() interface{}{
+		// stop the test run
+		"abort": func() interface{} {
+			return func(msg goja.Value) {
+				reason := common.AbortTest
+				if msg != nil && !goja.IsUndefined(msg) {
+					reason = fmt.Sprintf("%s: %s", reason, msg.String())
+				}
+				rt.Interrupt(&common.InterruptError{Reason: reason})
+			}
+		},
 		"duration": func() interface{} {
+			es := getES(ctx, rt)
 			return float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond)
 		},
 		"iterationsCompleted": func() interface{} {
+			es := getES(ctx, rt)
 			return es.GetFullIterationCount()
 		},
 		"iterationsInterrupted": func() interface{} {
+			es := getES(ctx, rt)
 			return es.GetPartialIterationCount()
 		},
 		"vusActive": func() interface{} {
+			es := getES(ctx, rt)
 			return es.GetCurrentlyActiveVUsCount()
 		},
 		"vusMax": func() interface{} {
+			es := getES(ctx, rt)
 			return es.GetInitializedVUsCount()
 		},
 	}
