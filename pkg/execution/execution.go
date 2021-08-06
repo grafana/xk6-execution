@@ -29,60 +29,66 @@ import (
 	"github.com/dop251/goja"
 
 	"go.k6.io/k6/js/common"
+	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/lib"
 )
 
 type (
-	// RootExecution is the global module instance that will create module
+	// RootModule is the global module instance that will create module
 	// instances for each VU.
-	RootExecution struct{}
-	// Execution is a JS module that returns information about the currently
-	// executing test run.
-	Execution struct{ *goja.Proxy }
+	RootModule struct{}
+
+	// ModuleInstance represents an instance of the execution module.
+	ModuleInstance struct {
+		modules.InstanceCore
+		proxy *goja.Proxy
+	}
 )
 
-// NewModuleInstancePerVU fulfills the k6 modules.HasModuleInstancePerVU
-// interface so that each VU will get a separate copy of the module.
-func (*RootExecution) NewModuleInstancePerVU() interface{} {
-	return &Execution{}
+var (
+	_ modules.IsModuleV2 = &RootModule{}
+	_ modules.Instance   = &ModuleInstance{}
+)
+
+// New returns a pointer to a new RootModule instance.
+func New() *RootModule {
+	return &RootModule{}
 }
 
-// New returns a pointer to a new RootExecution instance.
-func New() *RootExecution {
-	return &RootExecution{}
-}
-
-// WithContext fulfills the k6 modules.HasWithContext interface to allow
-// retrieving the VU, scenario and test state from the context used by each VU.
-// It initializes a goja.Proxy object for the per-VU module instance, which in
-// turn retrieves goja.DynamicObject instances for each property (scenario, vu,
-// test).
-func (e *Execution) WithContext(getCtx func() context.Context) {
+// NewModuleInstance implements the modules.IsModuleV2 interface to return
+// a new instance for each VU.
+// It initializes a goja.Proxy instance, which in turn returns
+// goja.DynamicObject instances for each property (scenario, vu, test).
+func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
 	keys := []string{"scenario", "vu", "test"}
 
 	pcfg := goja.ProxyTrapConfig{
 		OwnKeys: func(target *goja.Object) *goja.Object {
-			ctx := getCtx()
-			rt := common.GetRuntime(ctx)
+			rt := m.GetRuntime()
 			return rt.ToValue(keys).ToObject(rt)
 		},
 		Has: func(target *goja.Object, prop string) (available bool) {
 			return sort.SearchStrings(keys, prop) != -1
 		},
 		Get: func(target *goja.Object, prop string, r goja.Value) goja.Value {
-			return dynObjValue(getCtx, target, prop)
+			return dynObjValue(m.GetContext, target, prop)
 		},
 		GetOwnPropertyDescriptor: func(target *goja.Object, prop string) (desc goja.PropertyDescriptor) {
 			desc.Enumerable, desc.Configurable = goja.FLAG_TRUE, goja.FLAG_TRUE
-			desc.Value = dynObjValue(getCtx, target, prop)
+			desc.Value = dynObjValue(m.GetContext, target, prop)
 			return desc
 		},
 	}
 
-	ctx := getCtx()
-	rt := common.GetRuntime(ctx)
+	rt := m.GetRuntime()
 	proxy := rt.NewProxy(rt.NewObject(), &pcfg)
-	e.Proxy = &proxy
+
+	return &ModuleInstance{InstanceCore: m, proxy: &proxy}
+}
+
+// GetExports returns the exports of the execution module.
+func (mi *ModuleInstance) GetExports() modules.Exports {
+	return modules.Exports{Default: mi.proxy}
 }
 
 // dynObjValue returns a goja.Value for a specific prop on target.
