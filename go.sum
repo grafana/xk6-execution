@@ -277,8 +277,8 @@ github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
-go.k6.io/k6 v0.33.1-0.20210806145330-da1fb43c1c42 h1:HaZsGGeqQMDjJlsIT0dCzu/Rlhj5tkCa7EdaBCT0KZ4=
-go.k6.io/k6 v0.33.1-0.20210806145330-da1fb43c1c42/go.mod h1:Ajo3TAXd3NIelxiSVT3ClnhyInD8pVAvm1HvmNEI0Sw=
+go.k6.io/k6 v0.33.1-0.20210813093021-2381b70c087a h1:6SFXNAMG3trTOfymGxdMPXLqUScw2v5/2eHsjKLIvP8=
+go.k6.io/k6 v0.33.1-0.20210813093021-2381b70c087a/go.mod h1:Ajo3TAXd3NIelxiSVT3ClnhyInD8pVAvm1HvmNEI0Sw=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=

@@ -7,6 +7,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/afero v1.1.2
 	github.com/stretchr/testify v1.7.0
-	go.k6.io/k6 v0.33.1-0.20210806145330-da1fb43c1c42
+	go.k6.io/k6 v0.33.1-0.20210813093021-2381b70c087a
 	gopkg.in/guregu/null.v3 v3.3.0
 )
