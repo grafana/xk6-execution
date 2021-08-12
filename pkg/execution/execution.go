@@ -59,14 +59,13 @@ func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
 	mi := &ModuleInstance{InstanceCore: m}
 	rt := m.GetRuntime()
 	o := rt.NewObject()
-	defProp := func(name string, newInfo func() (*execInfo, error)) {
+	defProp := func(name string, newInfo func() (*goja.Object, error)) {
 		err := o.DefineAccessorProperty(name, rt.ToValue(func() goja.Value {
-			rt := mi.GetRuntime()
-			dobj, err := newInfo()
+			obj, err := newInfo()
 			if err != nil {
-				common.Throw(rt, err)
+				common.Throw(mi.GetRuntime(), err)
 			}
-			return rt.NewDynamicObject(dobj)
+			return obj
 		}), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
 		if err != nil {
 			common.Throw(rt, err)
@@ -86,9 +85,9 @@ func (mi *ModuleInstance) GetExports() modules.Exports {
 	return modules.Exports{Default: mi.obj}
 }
 
-// newScenarioInfo returns a goja.DynamicObject implementation to retrieve
+// newScenarioInfo returns a goja.Object with property accessors to retrieve
 // information about the scenario the current VU is running in.
-func (mi *ModuleInstance) newScenarioInfo() (*execInfo, error) {
+func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
 	vuState := lib.GetState(ctx)
 	ss := lib.GetScenarioState(ctx)
@@ -128,12 +127,12 @@ func (mi *ModuleInstance) newScenarioInfo() (*execInfo, error) {
 		},
 	}
 
-	return newExecInfo(rt, si), nil
+	return newInfoObj(rt, si), nil
 }
 
-// newTestInfo returns a goja.DynamicObject implementation to retrieve
+// newTestInfo returns a goja.Object with property accessors to retrieve
 // information about the overall test run (local instance).
-func (mi *ModuleInstance) newTestInfo() (*execInfo, error) {
+func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
@@ -163,12 +162,12 @@ func (mi *ModuleInstance) newTestInfo() (*execInfo, error) {
 		},
 	}
 
-	return newExecInfo(rt, ti), nil
+	return newInfoObj(rt, ti), nil
 }
 
-// newVUInfo returns a goja.DynamicObject implementation to retrieve
+// newVUInfo returns a goja.Object with property accessors to retrieve
 // information about the currently executing VU.
-func (mi *ModuleInstance) newVUInfo() (*execInfo, error) {
+func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
 	vuState := lib.GetState(ctx)
 	if vuState == nil {
@@ -189,41 +188,18 @@ func (mi *ModuleInstance) newVUInfo() (*execInfo, error) {
 		},
 	}
 
-	return newExecInfo(rt, vi), nil
+	return newInfoObj(rt, vi), nil
 }
 
-// execInfo is a goja.DynamicObject implementation to lazily return data only
-// on property access.
-type execInfo struct {
-	rt   *goja.Runtime
-	obj  map[string]func() interface{}
-	keys []string
-}
+func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) *goja.Object {
+	o := rt.NewObject()
 
-var _ goja.DynamicObject = &execInfo{}
-
-func newExecInfo(rt *goja.Runtime, obj map[string]func() interface{}) *execInfo {
-	keys := make([]string, 0, len(obj))
-	for k := range obj {
-		keys = append(keys, k)
+	for p, get := range props {
+		err := o.DefineAccessorProperty(p, rt.ToValue(get), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
+		if err != nil {
+			common.Throw(rt, err)
+		}
 	}
-	return &execInfo{obj: obj, keys: keys, rt: rt}
+
+	return o
 }
-
-func (ei *execInfo) Get(key string) goja.Value {
-	if fn, ok := ei.obj[key]; ok {
-		return ei.rt.ToValue(fn())
-	}
-	return goja.Undefined()
-}
-
-func (ei *execInfo) Set(key string, val goja.Value) bool { return false }
-
-func (ei *execInfo) Has(key string) bool {
-	_, has := ei.obj[key]
-	return has
-}
-
-func (ei *execInfo) Delete(key string) bool { return false }
-
-func (ei *execInfo) Keys() []string { return ei.keys }
