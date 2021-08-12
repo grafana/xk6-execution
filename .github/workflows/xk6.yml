@@ -41,7 +41,8 @@ jobs:
           go version
 
           go install github.com/k6io/xk6/cmd/xk6@master
-          GOPROXY="direct" xk6 build master \
+          K6_VERSION="$(grep 'go\.k6\.io' go.mod | cut -d' ' -f2)"
+          GOPROXY="direct" xk6 build \
             --output ./k6ext \
             --with github.com/k6io/xk6-execution="$(pwd)"
           ./k6ext version
