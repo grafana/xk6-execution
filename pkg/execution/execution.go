@@ -21,9 +21,7 @@
 package execution
 
 import (
-	"context"
 	"errors"
-	"sort"
 	"time"
 
 	"github.com/dop251/goja"
@@ -41,7 +39,7 @@ type (
 	// ModuleInstance represents an instance of the execution module.
 	ModuleInstance struct {
 		modules.InstanceCore
-		proxy *goja.Proxy
+		obj *goja.Object
 	}
 )
 
@@ -57,80 +55,41 @@ func New() *RootModule {
 
 // NewModuleInstance implements the modules.IsModuleV2 interface to return
 // a new instance for each VU.
-// It initializes a goja.Proxy instance, which in turn returns
-// goja.DynamicObject instances for each property (scenario, vu, test).
 func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
-	keys := []string{"scenario", "vu", "test"}
-
-	pcfg := goja.ProxyTrapConfig{
-		OwnKeys: func(target *goja.Object) *goja.Object {
-			rt := m.GetRuntime()
-			return rt.ToValue(keys).ToObject(rt)
-		},
-		Has: func(target *goja.Object, prop string) (available bool) {
-			return sort.SearchStrings(keys, prop) != -1
-		},
-		Get: func(target *goja.Object, prop string, r goja.Value) goja.Value {
-			return dynObjValue(m.GetContext, target, prop)
-		},
-		GetOwnPropertyDescriptor: func(target *goja.Object, prop string) (desc goja.PropertyDescriptor) {
-			desc.Enumerable, desc.Configurable = goja.FLAG_TRUE, goja.FLAG_TRUE
-			desc.Value = dynObjValue(m.GetContext, target, prop)
-			return desc
-		},
-	}
-
+	mi := &ModuleInstance{InstanceCore: m}
 	rt := m.GetRuntime()
-	proxy := rt.NewProxy(rt.NewObject(), &pcfg)
+	o := rt.NewObject()
+	defProp := func(name string, newInfo func() (*execInfo, error)) {
+		err := o.DefineAccessorProperty(name, rt.ToValue(func() goja.Value {
+			rt := mi.GetRuntime()
+			dobj, err := newInfo()
+			if err != nil {
+				common.Throw(rt, err)
+			}
+			return rt.NewDynamicObject(dobj)
+		}), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
+		if err != nil {
+			common.Throw(rt, err)
+		}
+	}
+	defProp("scenario", mi.newScenarioInfo)
+	defProp("test", mi.newTestInfo)
+	defProp("vu", mi.newVUInfo)
 
-	return &ModuleInstance{InstanceCore: m, proxy: &proxy}
+	mi.obj = o
+
+	return mi
 }
 
 // GetExports returns the exports of the execution module.
 func (mi *ModuleInstance) GetExports() modules.Exports {
-	return modules.Exports{Default: mi.proxy}
-}
-
-// dynObjValue returns a goja.Value for a specific prop on target.
-func dynObjValue(getCtx func() context.Context, target *goja.Object, prop string) goja.Value {
-	v := target.Get(prop)
-	if v != nil {
-		return v
-	}
-
-	ctx := getCtx()
-	rt := common.GetRuntime(ctx)
-	var (
-		dobj *execInfo
-		err  error
-	)
-	switch prop {
-	case "scenario":
-		dobj, err = newScenarioInfo(getCtx)
-	case "test":
-		dobj, err = newTestInfo(getCtx)
-	case "vu":
-		dobj, err = newVUInfo(getCtx)
-	}
-
-	if err != nil {
-		// TODO: Something less drastic?
-		common.Throw(rt, err)
-	}
-
-	if dobj != nil {
-		v = rt.NewDynamicObject(dobj)
-	}
-	if err := target.Set(prop, v); err != nil {
-		common.Throw(rt, err)
-	}
-	return v
+	return modules.Exports{Default: mi.obj}
 }
 
 // newScenarioInfo returns a goja.DynamicObject implementation to retrieve
 // information about the scenario the current VU is running in.
-func newScenarioInfo(getCtx func() context.Context) (*execInfo, error) {
-	ctx := getCtx()
+func (mi *ModuleInstance) newScenarioInfo() (*execInfo, error) {
+	ctx := mi.GetContext()
 	vuState := lib.GetState(ctx)
 	ss := lib.GetScenarioState(ctx)
 	if ss == nil || vuState == nil {
@@ -144,12 +103,12 @@ func newScenarioInfo(getCtx func() context.Context) (*execInfo, error) {
 
 	si := map[string]func() interface{}{
 		"name": func() interface{} {
-			ctx := getCtx()
+			ctx := mi.GetContext()
 			ss := lib.GetScenarioState(ctx)
 			return ss.Name
 		},
 		"executor": func() interface{} {
-			ctx := getCtx()
+			ctx := mi.GetContext()
 			ss := lib.GetScenarioState(ctx)
 			return ss.Executor
 		},
@@ -174,8 +133,8 @@ func newScenarioInfo(getCtx func() context.Context) (*execInfo, error) {
 
 // newTestInfo returns a goja.DynamicObject implementation to retrieve
 // information about the overall test run (local instance).
-func newTestInfo(getCtx func() context.Context) (*execInfo, error) {
-	ctx := getCtx()
+func (mi *ModuleInstance) newTestInfo() (*execInfo, error) {
+	ctx := mi.GetContext()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
 		return nil, errors.New("getting test information in the init context is not supported")
@@ -209,8 +168,8 @@ func newTestInfo(getCtx func() context.Context) (*execInfo, error) {
 
 // newVUInfo returns a goja.DynamicObject implementation to retrieve
 // information about the currently executing VU.
-func newVUInfo(getCtx func() context.Context) (*execInfo, error) {
-	ctx := getCtx()
+func (mi *ModuleInstance) newVUInfo() (*execInfo, error) {
+	ctx := mi.GetContext()
 	vuState := lib.GetState(ctx)
 	if vuState == nil {
 		return nil, errors.New("getting VU information in the init context is not supported")
