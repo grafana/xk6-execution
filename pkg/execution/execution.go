@@ -63,7 +63,7 @@ func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
 		err := o.DefineAccessorProperty(name, rt.ToValue(func() goja.Value {
 			obj, err := newInfo()
 			if err != nil {
-				common.Throw(mi.GetRuntime(), err)
+				common.Throw(rt, err)
 			}
 			return obj
 		}), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
@@ -127,7 +127,7 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 		},
 	}
 
-	return newInfoObj(rt, si), nil
+	return newInfoObj(rt, si)
 }
 
 // newTestInfo returns a goja.Object with property accessors to retrieve
@@ -162,7 +162,7 @@ func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 		},
 	}
 
-	return newInfoObj(rt, ti), nil
+	return newInfoObj(rt, ti)
 }
 
 // newVUInfo returns a goja.Object with property accessors to retrieve
@@ -188,18 +188,18 @@ func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
 		},
 	}
 
-	return newInfoObj(rt, vi), nil
+	return newInfoObj(rt, vi)
 }
 
-func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) *goja.Object {
+func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) (*goja.Object, error) {
 	o := rt.NewObject()
 
 	for p, get := range props {
 		err := o.DefineAccessorProperty(p, rt.ToValue(get), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
 		if err != nil {
-			common.Throw(rt, err)
+			return nil, err
 		}
 	}
 
-	return o
+	return o, nil
 }
