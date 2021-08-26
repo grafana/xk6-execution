@@ -40,7 +40,7 @@ jobs:
           which go
           go version
 
-          go install github.com/k6io/xk6/cmd/xk6@master
+          go install go.k6.io/xk6/cmd/xk6@master
           GOPROXY="direct" xk6 build master \
             --output ./k6ext \
             --with github.com/k6io/xk6-execution="$(pwd)"
