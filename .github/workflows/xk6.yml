@@ -40,11 +40,8 @@ jobs:
           which go
           go version
 
-          # Temporary hack to ignore the v0.33.0 tag change
-          export GONOSUMDB="go.k6.io/k6"
-          go install github.com/k6io/xk6/cmd/xk6@master
-          K6_VERSION="$(grep 'go\.k6\.io' go.mod | cut -d' ' -f2)"
-          GOPROXY="direct" xk6 build \
+          go install go.k6.io/xk6/cmd/xk6@master
+          GOPROXY="direct" xk6 build master \
             --output ./k6ext \
             --with github.com/k6io/xk6-execution="$(pwd)"
           ./k6ext version

@@ -55,8 +55,8 @@ github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZm
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91 h1:Izz0+t1Z5nI16/II7vuEo/nHjodOg0p7+OiDpjX5t1E=
 github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
-github.com/dop251/goja v0.0.0-20210712101704-705acef95ba3 h1:9ILKyhZZQ3D/7Hk5io+HA7HVg9mgGn0gocu6+n6kNgQ=
-github.com/dop251/goja v0.0.0-20210712101704-705acef95ba3/go.mod h1:R9ET47fwRVRPZnOGvHxxhuZcbrMCuiqOz3Rlrh4KSnk=
+github.com/dop251/goja v0.0.0-20210817151038-07a7fd9355b4 h1:c6+6EmiSboC79bkEtZGQhpeEWP1lzHuHpr1tPdISdYo=
+github.com/dop251/goja v0.0.0-20210817151038-07a7fd9355b4/go.mod h1:R9ET47fwRVRPZnOGvHxxhuZcbrMCuiqOz3Rlrh4KSnk=
 github.com/dop251/goja_nodejs v0.0.0-20210225215109-d91c329300e7/go.mod h1:hn7BA7c8pLvoGndExHudxTDKZ84Pyvv+90pbBjbTz0Y=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
@@ -277,8 +277,8 @@ github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
-go.k6.io/k6 v0.33.1-0.20210806145330-da1fb43c1c42 h1:HaZsGGeqQMDjJlsIT0dCzu/Rlhj5tkCa7EdaBCT0KZ4=
-go.k6.io/k6 v0.33.1-0.20210806145330-da1fb43c1c42/go.mod h1:Ajo3TAXd3NIelxiSVT3ClnhyInD8pVAvm1HvmNEI0Sw=
+go.k6.io/k6 v0.33.1-0.20210825161650-c932a28ff940 h1:8WUBf1DOjWWH35ZRoZNEFycx3tgbA3d+3ZBk0FCUzyo=
+go.k6.io/k6 v0.33.1-0.20210825161650-c932a28ff940/go.mod h1:MnUeCfHJ/4YjFfZuRqgGP6TTKkZMI5xGxuUnwZsG3yU=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=

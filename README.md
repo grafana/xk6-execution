@@ -1,7 +1,7 @@
 # xk6-execution
 
-A [k6](https://github.com/k6io/k6) JavaScript extension using the
-[xk6](https://github.com/k6io/xk6) system that returns information about a
+A [k6](https://github.com/grafana/k6) JavaScript extension using the
+[xk6](https://github.com/grafana/xk6) system that returns information about a
 test run including VU, scenario and test statistics.
 
 | :exclamation: This project is in active development and may break in the future.<br>Please report issues and contribute improvements to help. |
@@ -19,13 +19,13 @@ Then:
 
 1. Install `xk6`:
   ```shell
-  go install github.com/k6io/xk6/cmd/xk6@latest
+  go install go.k6.io/xk6/cmd/xk6@latest
   ```
 
 2. Build the binary:
   ```shell
   xk6 build master \
-    --with github.com/k6io/xk6-execution
+    --with github.com/grafana/xk6-execution
   ```
 
 
