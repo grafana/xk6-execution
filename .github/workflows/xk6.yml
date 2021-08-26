@@ -1,0 +1,48 @@
+name: xk6
+on:
+  # Enable manually triggering this workflow via the API or web UI
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test-xk6:
+    strategy:
+      matrix:
+        go: [stable, tip]
+        platform: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x
+      - name: Install Go tip
+        if: matrix.go == 'tip'
+        run: |
+          go install golang.org/dl/gotip@latest
+          gotip download
+          echo "GOROOT=$HOME/sdk/gotip" >> "$GITHUB_ENV"
+          echo "GOPATH=$HOME/go" >> "$GITHUB_ENV"
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          echo "$HOME/sdk/gotip/bin" >> "$GITHUB_PATH"
+      - name: Run tests
+        run: |
+          set -x
+          which go
+          go version
+
+          go install go.k6.io/xk6/cmd/xk6@master
+          GOPROXY="direct" xk6 build master \
+            --output ./k6ext \
+            --with github.com/k6io/xk6-execution="$(pwd)"
+          ./k6ext version
+          ./k6ext run --quiet --verbose .github/workflows/xk6-test.js
