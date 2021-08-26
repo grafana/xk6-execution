@@ -21,57 +21,76 @@
 package execution
 
 import (
-	"context"
 	"errors"
 	"time"
 
 	"github.com/dop251/goja"
 
 	"go.k6.io/k6/js/common"
+	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/lib"
 )
 
-// Execution is a JS module to return information about the execution in progress.
-type Execution struct{}
+type (
+	// RootModule is the global module instance that will create module
+	// instances for each VU.
+	RootModule struct{}
 
-// New returns a pointer to a new Execution.
-func New() *Execution {
-	return &Execution{}
+	// ModuleInstance represents an instance of the execution module.
+	ModuleInstance struct {
+		modules.InstanceCore
+		obj *goja.Object
+	}
+)
+
+var (
+	_ modules.IsModuleV2 = &RootModule{}
+	_ modules.Instance   = &ModuleInstance{}
+)
+
+// New returns a pointer to a new RootModule instance.
+func New() *RootModule {
+	return &RootModule{}
 }
 
-// GetVUStats returns information about the currently executing VU.
-func (e *Execution) GetVUStats(ctx context.Context) (goja.Value, error) {
+// NewModuleInstance implements the modules.IsModuleV2 interface to return
+// a new instance for each VU.
+func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
+	mi := &ModuleInstance{InstanceCore: m}
+	rt := m.GetRuntime()
+	o := rt.NewObject()
+	defProp := func(name string, newInfo func() (*goja.Object, error)) {
+		err := o.DefineAccessorProperty(name, rt.ToValue(func() goja.Value {
+			obj, err := newInfo()
+			if err != nil {
+				common.Throw(rt, err)
+			}
+			return obj
+		}), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
+		if err != nil {
+			common.Throw(rt, err)
+		}
+	}
+	defProp("scenario", mi.newScenarioInfo)
+	defProp("test", mi.newTestInfo)
+	defProp("vu", mi.newVUInfo)
+
+	mi.obj = o
+
+	return mi
+}
+
+// GetExports returns the exports of the execution module.
+func (mi *ModuleInstance) GetExports() modules.Exports {
+	return modules.Exports{Default: mi.obj}
+}
+
+// newScenarioInfo returns a goja.Object with property accessors to retrieve
+// information about the scenario the current VU is running in.
+func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
+	ctx := mi.GetContext()
 	vuState := lib.GetState(ctx)
-	if vuState == nil {
-		return nil, errors.New("getting VU information in the init context is not supported")
-	}
-
-	rt := common.GetRuntime(ctx)
-	if rt == nil {
-		return nil, errors.New("goja runtime is nil in context")
-	}
-
-	stats := map[string]interface{}{
-		"id":        vuState.VUID,
-		"idGlobal":  vuState.VUIDGlobal,
-		"iteration": vuState.Iteration,
-		"iterationScenario": func() goja.Value {
-			return rt.ToValue(vuState.GetScenarioVUIter())
-		},
-	}
-
-	obj, err := newLazyJSObject(rt, stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
-}
-
-// GetScenarioStats returns information about the currently executing scenario.
-func (e *Execution) GetScenarioStats(ctx context.Context) (goja.Value, error) {
 	ss := lib.GetScenarioState(ctx)
-	vuState := lib.GetState(ctx)
 	if ss == nil || vuState == nil {
 		return nil, errors.New("getting scenario information in the init context is not supported")
 	}
@@ -81,35 +100,40 @@ func (e *Execution) GetScenarioStats(ctx context.Context) (goja.Value, error) {
 		return nil, errors.New("goja runtime is nil in context")
 	}
 
-	var iterGlobal interface{}
-	if vuState.GetScenarioGlobalVUIter != nil {
-		iterGlobal = vuState.GetScenarioGlobalVUIter()
-	} else {
-		iterGlobal = goja.Null()
-	}
-
-	stats := map[string]interface{}{
-		"name":      ss.Name,
-		"executor":  ss.Executor,
-		"startTime": float64(ss.StartTime.UnixNano()) / 1e9,
-		"progress": func() goja.Value {
-			p, _ := ss.ProgressFn()
-			return rt.ToValue(p)
+	si := map[string]func() interface{}{
+		"name": func() interface{} {
+			ctx := mi.GetContext()
+			ss := lib.GetScenarioState(ctx)
+			return ss.Name
 		},
-		"iteration":       vuState.GetScenarioLocalVUIter(),
-		"iterationGlobal": iterGlobal,
+		"executor": func() interface{} {
+			ctx := mi.GetContext()
+			ss := lib.GetScenarioState(ctx)
+			return ss.Executor
+		},
+		"startTime": func() interface{} { return float64(ss.StartTime.UnixNano()) / 1e9 },
+		"progress": func() interface{} {
+			p, _ := ss.ProgressFn()
+			return p
+		},
+		"iteration": func() interface{} {
+			return vuState.GetScenarioLocalVUIter()
+		},
+		"iterationGlobal": func() interface{} {
+			if vuState.GetScenarioGlobalVUIter != nil {
+				return vuState.GetScenarioGlobalVUIter()
+			}
+			return goja.Null()
+		},
 	}
 
-	obj, err := newLazyJSObject(rt, stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	return newInfoObj(rt, si)
 }
 
-// GetTestInstanceStats returns test information for the current k6 instance.
-func (e *Execution) GetTestInstanceStats(ctx context.Context) (goja.Value, error) {
+// newTestInfo returns a goja.Object with property accessors to retrieve
+// information about the overall test run (local instance).
+func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
+	ctx := mi.GetContext()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
 		return nil, errors.New("getting test information in the init context is not supported")
@@ -120,48 +144,62 @@ func (e *Execution) GetTestInstanceStats(ctx context.Context) (goja.Value, error
 		return nil, errors.New("goja runtime is nil in context")
 	}
 
-	stats := map[string]interface{}{
-		"duration": func() goja.Value {
-			return rt.ToValue(float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond))
+	ti := map[string]func() interface{}{
+		"duration": func() interface{} {
+			return float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond)
 		},
-		"iterationsCompleted": func() goja.Value {
-			return rt.ToValue(es.GetFullIterationCount())
+		"iterationsCompleted": func() interface{} {
+			return es.GetFullIterationCount()
 		},
-		"iterationsInterrupted": func() goja.Value {
-			return rt.ToValue(es.GetPartialIterationCount())
+		"iterationsInterrupted": func() interface{} {
+			return es.GetPartialIterationCount()
 		},
-		"vusActive": func() goja.Value {
-			return rt.ToValue(es.GetCurrentlyActiveVUsCount())
+		"vusActive": func() interface{} {
+			return es.GetCurrentlyActiveVUsCount()
 		},
-		"vusMax": func() goja.Value {
-			return rt.ToValue(es.GetInitializedVUsCount())
+		"vusMax": func() interface{} {
+			return es.GetInitializedVUsCount()
 		},
 	}
 
-	obj, err := newLazyJSObject(rt, stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	return newInfoObj(rt, ti)
 }
 
-func newLazyJSObject(rt *goja.Runtime, data map[string]interface{}) (goja.Value, error) {
-	obj := rt.NewObject()
+// newVUInfo returns a goja.Object with property accessors to retrieve
+// information about the currently executing VU.
+func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
+	ctx := mi.GetContext()
+	vuState := lib.GetState(ctx)
+	if vuState == nil {
+		return nil, errors.New("getting VU information in the init context is not supported")
+	}
 
-	for k, v := range data {
-		if val, ok := v.(func() goja.Value); ok {
-			if err := obj.DefineAccessorProperty(k, rt.ToValue(val),
-				nil, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := obj.DefineDataProperty(k, rt.ToValue(v),
-				goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
-				return nil, err
-			}
+	rt := common.GetRuntime(ctx)
+	if rt == nil {
+		return nil, errors.New("goja runtime is nil in context")
+	}
+
+	vi := map[string]func() interface{}{
+		"id":        func() interface{} { return vuState.VUID },
+		"idGlobal":  func() interface{} { return vuState.VUIDGlobal },
+		"iteration": func() interface{} { return vuState.Iteration },
+		"iterationScenario": func() interface{} {
+			return vuState.GetScenarioVUIter()
+		},
+	}
+
+	return newInfoObj(rt, vi)
+}
+
+func newInfoObj(rt *goja.Runtime, props map[string]func() interface{}) (*goja.Object, error) {
+	o := rt.NewObject()
+
+	for p, get := range props {
+		err := o.DefineAccessorProperty(p, rt.ToValue(get), nil, goja.FLAG_FALSE, goja.FLAG_TRUE)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return obj, nil
+	return o, nil
 }
