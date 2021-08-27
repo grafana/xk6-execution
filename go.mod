@@ -1,4 +1,4 @@
-module github.com/k6io/xk6-execution
+module github.com/grafana/xk6-execution
 
 go 1.16
 

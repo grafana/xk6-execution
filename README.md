@@ -50,13 +50,10 @@ function logObj(msg, o) {
 }
 
 export default function () {
-  const vuStats = exec.getVUStats();
-  const scStats = exec.getScenarioStats();
-  const testStats = exec.getTestInstanceStats();
   sleep(1);
-  logObj('VU stats:', vuStats);
-  logObj('Scenario stats:', scStats);
-  logObj('Test stats:', testStats);
+  logObj('VU stats:', exec.vu);
+  logObj('Scenario stats:', exec.scenario);
+  logObj('Test stats:', exec.test);
 }
 ```
 

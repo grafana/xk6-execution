@@ -43,6 +43,6 @@ jobs:
           go install go.k6.io/xk6/cmd/xk6@master
           GOPROXY="direct" xk6 build master \
             --output ./k6ext \
-            --with github.com/k6io/xk6-execution="$(pwd)"
+            --with github.com/grafana/xk6-execution="$(pwd)"
           ./k6ext version
           ./k6ext run --quiet --verbose .github/workflows/xk6-test.js

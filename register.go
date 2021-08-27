@@ -1,7 +1,7 @@
 package execution
 
 import (
-	"github.com/k6io/xk6-execution/pkg/execution"
+	"github.com/grafana/xk6-execution/pkg/execution"
 
 	"go.k6.io/k6/js/modules"
 )
