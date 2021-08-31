@@ -72,7 +72,7 @@ func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
 		}
 	}
 	defProp("scenario", mi.newScenarioInfo)
-	defProp("test", mi.newTestInfo)
+	defProp("instance", mi.newInstanceInfo)
 	defProp("vu", mi.newVUInfo)
 
 	mi.obj = o
@@ -116,10 +116,10 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 			p, _ := ss.ProgressFn()
 			return p
 		},
-		"iteration": func() interface{} {
+		"iterationInInstance": func() interface{} {
 			return vuState.GetScenarioLocalVUIter()
 		},
-		"iterationGlobal": func() interface{} {
+		"iterationInTest": func() interface{} {
 			if vuState.GetScenarioGlobalVUIter != nil {
 				return vuState.GetScenarioGlobalVUIter()
 			}
@@ -130,9 +130,9 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 	return newInfoObj(rt, si)
 }
 
-// newTestInfo returns a goja.Object with property accessors to retrieve
-// information about the overall test run (local instance).
-func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
+// newInstanceInfo returns a goja.Object with property accessors to retrieve
+// information about the local instance stats.
+func (mi *ModuleInstance) newInstanceInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
@@ -145,7 +145,7 @@ func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 	}
 
 	ti := map[string]func() interface{}{
-		"duration": func() interface{} {
+		"currentTestRunDuration": func() interface{} {
 			return float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond)
 		},
 		"iterationsCompleted": func() interface{} {
@@ -157,7 +157,7 @@ func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 		"vusActive": func() interface{} {
 			return es.GetCurrentlyActiveVUsCount()
 		},
-		"vusMax": func() interface{} {
+		"vusInitialized": func() interface{} {
 			return es.GetInitializedVUsCount()
 		},
 	}
@@ -180,10 +180,10 @@ func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
 	}
 
 	vi := map[string]func() interface{}{
-		"id":        func() interface{} { return vuState.VUID },
-		"idGlobal":  func() interface{} { return vuState.VUIDGlobal },
-		"iteration": func() interface{} { return vuState.Iteration },
-		"iterationScenario": func() interface{} {
+		"idInInstance":        func() interface{} { return vuState.VUID },
+		"idInTest":            func() interface{} { return vuState.VUIDGlobal },
+		"iterationInInstance": func() interface{} { return vuState.Iteration },
+		"iterationInScenario": func() interface{} {
 			return vuState.GetScenarioVUIter()
 		},
 	}

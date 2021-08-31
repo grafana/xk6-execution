@@ -53,16 +53,16 @@ export default function () {
   sleep(1);
   logObj('VU stats:', exec.vu);
   logObj('Scenario stats:', exec.scenario);
-  logObj('Test stats:', exec.test);
+  logObj('Test stats:', exec.instance);
 }
 ```
 
 Sample output:
 
 ```shell
-INFO[0009] VU stats: {"id":36,"idGlobal":36,"iteration":8,"iterationScenario":8}  source=console
-INFO[0009] Scenario stats: {"executor":"shared-iterations","iteration":429,"iterationGlobal":429,"name":"shared","progress":0.858,"startTime":1624262301.1202478}  source=console
-INFO[0009] Test stats: {"duration":9035.161124,"iterationsCompleted":429,"iterationsInterrupted":0,"vusActive":50,"vusMax":50}  source=console
+INFO[0009] VU stats: {"idInInstance":36,"idInTest":36,"iterationInInstance":8,"iterationInScenario":8}  source=console
+INFO[0009] Scenario stats: {"executor":"shared-iterations","iterationInInstance":429,"iterationInTest":429,"name":"shared","progress":0.858,"startTime":1624262301.1202478}  source=console
+INFO[0009] Test stats: {"currentTestRunDuration":9035.161124,"iterationsCompleted":429,"iterationsInterrupted":0,"vusActive":50,"vusInitialized":50}  source=console
 ```
 
 

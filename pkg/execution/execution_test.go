@@ -95,9 +95,10 @@ func TestExecutionInfoVUSharing(t *testing.T) {
 	vuStats := map[uint64]*vuStat{}
 
 	type logEntry struct {
-		ID, Iteration     uint64
-		Scenario          string
-		IterationScenario uint64
+		IdInInstance        uint64
+		Scenario            string
+		IterationInInstance uint64
+		IterationInScenario uint64
 	}
 
 	errCh := make(chan error, 1)
@@ -112,15 +113,15 @@ func TestExecutionInfoVUSharing(t *testing.T) {
 		for _, entry := range entries {
 			err = json.Unmarshal([]byte(entry.Message), le)
 			require.NoError(t, err)
-			assert.Contains(t, []uint64{1, 2}, le.ID)
-			if _, ok := vuStats[le.ID]; !ok {
-				vuStats[le.ID] = &vuStat{0, make(map[string]uint64)}
+			assert.Contains(t, []uint64{1, 2}, le.IdInInstance)
+			if _, ok := vuStats[le.IdInInstance]; !ok {
+				vuStats[le.IdInInstance] = &vuStat{0, make(map[string]uint64)}
 			}
-			if le.Iteration > vuStats[le.ID].iteration {
-				vuStats[le.ID].iteration = le.Iteration
+			if le.IterationInInstance > vuStats[le.IdInInstance].iteration {
+				vuStats[le.IdInInstance].iteration = le.IterationInInstance
 			}
-			if le.IterationScenario > vuStats[le.ID].scIter[le.Scenario] {
-				vuStats[le.ID].scIter[le.Scenario] = le.IterationScenario
+			if le.IterationInScenario > vuStats[le.IdInInstance].scIter[le.Scenario] {
+				vuStats[le.IdInInstance].scIter[le.Scenario] = le.IterationInScenario
 			}
 		}
 		require.Len(t, vuStats, 2)
@@ -201,8 +202,8 @@ func TestExecutionInfoScenarioIter(t *testing.T) {
 	scStats := map[string]uint64{}
 
 	type logEntry struct {
-		Name            string
-		Iteration, VUID uint64
+		Name                      string
+		IterationInInstance, VUID uint64
 	}
 
 	select {
@@ -215,8 +216,8 @@ func TestExecutionInfoScenarioIter(t *testing.T) {
 			err = json.Unmarshal([]byte(entry.Message), le)
 			require.NoError(t, err)
 			assert.Contains(t, []uint64{1, 2}, le.VUID)
-			if le.Iteration > scStats[le.Name] {
-				scStats[le.Name] = le.Iteration
+			if le.IterationInInstance > scStats[le.Name] {
+				scStats[le.Name] = le.IterationInInstance
 			}
 		}
 		require.Len(t, scStats, 2)
@@ -281,7 +282,7 @@ func TestSharedIterationsStable(t *testing.T) {
 	}
 	gotLocalIters, gotGlobalIters := []int64{}, []int64{}
 
-	type logEntry struct{ Iteration, IterationGlobal int64 }
+	type logEntry struct{ IterationInInstance, IterationInTest int64 }
 
 	select {
 	case err := <-errCh:
@@ -292,9 +293,9 @@ func TestSharedIterationsStable(t *testing.T) {
 		for _, entry := range entries {
 			err = json.Unmarshal([]byte(entry.Message), le)
 			require.NoError(t, err)
-			require.Equal(t, le.Iteration, le.IterationGlobal)
-			gotLocalIters = append(gotLocalIters, le.Iteration)
-			gotGlobalIters = append(gotGlobalIters, le.IterationGlobal)
+			require.Equal(t, le.IterationInInstance, le.IterationInTest)
+			gotLocalIters = append(gotLocalIters, le.IterationInInstance)
+			gotGlobalIters = append(gotGlobalIters, le.IterationInTest)
 		}
 
 		assert.ElementsMatch(t, expIters, gotLocalIters)
@@ -314,10 +315,10 @@ func TestExecutionInfo(t *testing.T) {
 		var exec = require('k6/x/execution');
 
 		exports.default = function() {
-			if (exec.vu.id !== 1) throw new Error('unexpected VU ID: '+exec.vu.id);
-			if (exec.vu.idGlobal !== 10) throw new Error('unexpected global VU ID: '+exec.vu.idGlobal);
-			if (exec.vu.iteration !== 0) throw new Error('unexpected VU iteration: '+exec.vu.iteration);
-			if (exec.vu.iterationScenario !== 0) throw new Error('unexpected scenario iteration: '+exec.vu.iterationScenario);
+			if (exec.vu.idInInstance !== 1) throw new Error('unexpected VU ID: '+exec.vu.idInInstance);
+			if (exec.vu.idInTest !== 10) throw new Error('unexpected global VU ID: '+exec.vu.idInTest);
+			if (exec.vu.iterationInInstance !== 0) throw new Error('unexpected VU iteration: '+exec.vu.iterationInInstance);
+			if (exec.vu.iterationInScenario !== 0) throw new Error('unexpected scenario iteration: '+exec.vu.iterationInScenario);
 		}`},
 		{name: "vu_err", script: `
 		var exec = require('k6/x/execution');
@@ -334,8 +335,8 @@ func TestExecutionInfo(t *testing.T) {
 			if (si.executor !== 'test-exec') throw new Error('unexpected executor: '+si.executor);
 			if (si.startTime > new Date().getTime()) throw new Error('unexpected startTime: '+si.startTime);
 			if (si.progress !== 0.1) throw new Error('unexpected progress: '+si.progress);
-			if (si.iteration !== 3) throw new Error('unexpected scenario local iteration: '+si.iteration);
-			if (si.iterationGlobal !== 4) throw new Error('unexpected scenario local iteration: '+si.iterationGlobal);
+			if (si.iterationInInstance !== 3) throw new Error('unexpected scenario local iteration: '+si.iterationInInstance);
+			if (si.iterationInTest !== 4) throw new Error('unexpected scenario local iteration: '+si.iterationInTest);
 		}`},
 		{name: "scenario_err", script: `
 		var exec = require('k6/x/execution');
@@ -345,16 +346,16 @@ func TestExecutionInfo(t *testing.T) {
 		var exec = require('k6/x/execution');
 
 		exports.default = function() {
-			var ti = exec.test;
-			if (ti.duration !== 0) throw new Error('unexpected test duration: '+ti.duration);
+			var ti = exec.instance;
+			if (ti.currentTestRunDuration !== 0) throw new Error('unexpected test duration: '+ti.currentTestRunDuration);
 			if (ti.vusActive !== 1) throw new Error('unexpected vusActive: '+ti.vusActive);
-			if (ti.vusMax !== 0) throw new Error('unexpected vusMax: '+ti.vusMax);
+			if (ti.vusInitialized !== 0) throw new Error('unexpected vusInitialized: '+ti.vusInitialized);
 			if (ti.iterationsCompleted !== 0) throw new Error('unexpected iterationsCompleted: '+ti.iterationsCompleted);
 			if (ti.iterationsInterrupted !== 0) throw new Error('unexpected iterationsInterrupted: '+ti.iterationsInterrupted);
 		}`},
 		{name: "test_err", script: `
 		var exec = require('k6/x/execution');
-		exec.test;
+		exec.instance;
 		`, expErr: "getting test information in the init context is not supported"},
 	}
 
