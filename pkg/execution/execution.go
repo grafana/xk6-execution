@@ -72,7 +72,7 @@ func (*RootModule) NewModuleInstance(m modules.InstanceCore) modules.Instance {
 		}
 	}
 	defProp("scenario", mi.newScenarioInfo)
-	defProp("test", mi.newTestInfo)
+	defProp("instance", mi.newInstanceInfo)
 	defProp("vu", mi.newVUInfo)
 
 	mi.obj = o
@@ -111,32 +111,35 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 			ss := lib.GetScenarioState(ctx)
 			return ss.Executor
 		},
-		"startTime": func() interface{} { return float64(ss.StartTime.UnixNano()) / 1e9 },
+		"startTime": func() interface{} {
+			// Return the timestamp in milliseconds, since that's how JS
+			// timestamps usually are:
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/Date#time_value_or_timestamp_number
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now#return_value
+			return ss.StartTime.UnixNano() / int64(time.Millisecond)
+		},
 		"progress": func() interface{} {
 			p, _ := ss.ProgressFn()
 			return p
 		},
-		"iteration": func() interface{} {
+		"iterationInInstance": func() interface{} {
 			return vuState.GetScenarioLocalVUIter()
 		},
-		"iterationGlobal": func() interface{} {
-			if vuState.GetScenarioGlobalVUIter != nil {
-				return vuState.GetScenarioGlobalVUIter()
-			}
-			return goja.Null()
+		"iterationInTest": func() interface{} {
+			return vuState.GetScenarioGlobalVUIter()
 		},
 	}
 
 	return newInfoObj(rt, si)
 }
 
-// newTestInfo returns a goja.Object with property accessors to retrieve
-// information about the overall test run (local instance).
-func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
+// newInstanceInfo returns a goja.Object with property accessors to retrieve
+// information about the local instance stats.
+func (mi *ModuleInstance) newInstanceInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
-		return nil, errors.New("getting test information in the init context is not supported")
+		return nil, errors.New("getting instance information in the init context is not supported")
 	}
 
 	rt := common.GetRuntime(ctx)
@@ -145,7 +148,7 @@ func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 	}
 
 	ti := map[string]func() interface{}{
-		"duration": func() interface{} {
+		"currentTestRunDuration": func() interface{} {
 			return float64(es.GetCurrentTestRunDuration()) / float64(time.Millisecond)
 		},
 		"iterationsCompleted": func() interface{} {
@@ -157,7 +160,7 @@ func (mi *ModuleInstance) newTestInfo() (*goja.Object, error) {
 		"vusActive": func() interface{} {
 			return es.GetCurrentlyActiveVUsCount()
 		},
-		"vusMax": func() interface{} {
+		"vusInitialized": func() interface{} {
 			return es.GetInitializedVUsCount()
 		},
 	}
@@ -180,10 +183,10 @@ func (mi *ModuleInstance) newVUInfo() (*goja.Object, error) {
 	}
 
 	vi := map[string]func() interface{}{
-		"id":        func() interface{} { return vuState.VUID },
-		"idGlobal":  func() interface{} { return vuState.VUIDGlobal },
-		"iteration": func() interface{} { return vuState.Iteration },
-		"iterationScenario": func() interface{} {
+		"idInInstance":        func() interface{} { return vuState.VUID },
+		"idInTest":            func() interface{} { return vuState.VUIDGlobal },
+		"iterationInInstance": func() interface{} { return vuState.Iteration },
+		"iterationInScenario": func() interface{} {
 			return vuState.GetScenarioVUIter()
 		},
 	}
