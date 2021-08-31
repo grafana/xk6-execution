@@ -126,10 +126,7 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 			return vuState.GetScenarioLocalVUIter()
 		},
 		"iterationInTest": func() interface{} {
-			if vuState.GetScenarioGlobalVUIter != nil {
-				return vuState.GetScenarioGlobalVUIter()
-			}
-			return goja.Null()
+			return vuState.GetScenarioGlobalVUIter()
 		},
 	}
 
