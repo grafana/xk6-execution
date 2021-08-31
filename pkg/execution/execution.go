@@ -139,7 +139,7 @@ func (mi *ModuleInstance) newInstanceInfo() (*goja.Object, error) {
 	ctx := mi.GetContext()
 	es := lib.GetExecutionState(ctx)
 	if es == nil {
-		return nil, errors.New("getting test information in the init context is not supported")
+		return nil, errors.New("getting instance information in the init context is not supported")
 	}
 
 	rt := common.GetRuntime(ctx)

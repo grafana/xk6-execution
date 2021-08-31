@@ -356,7 +356,7 @@ func TestExecutionInfo(t *testing.T) {
 		{name: "test_err", script: `
 		var exec = require('k6/x/execution');
 		exec.instance;
-		`, expErr: "getting test information in the init context is not supported"},
+		`, expErr: "getting instance information in the init context is not supported"},
 	}
 
 	for _, tc := range testCases {
