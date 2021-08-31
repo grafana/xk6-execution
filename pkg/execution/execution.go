@@ -111,7 +111,13 @@ func (mi *ModuleInstance) newScenarioInfo() (*goja.Object, error) {
 			ss := lib.GetScenarioState(ctx)
 			return ss.Executor
 		},
-		"startTime": func() interface{} { return float64(ss.StartTime.UnixNano()) / 1e9 },
+		"startTime": func() interface{} {
+			// Return the timestamp in milliseconds, since that's how JS
+			// timestamps usually are:
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/Date#time_value_or_timestamp_number
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now#return_value
+			return ss.StartTime.UnixNano() / int64(time.Millisecond)
+		},
 		"progress": func() interface{} {
 			p, _ := ss.ProgressFn()
 			return p
