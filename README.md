@@ -4,7 +4,7 @@ A [k6](https://github.com/grafana/k6) JavaScript extension using the
 [xk6](https://github.com/grafana/xk6) system that returns information about a
 test run including VU, scenario and test statistics.
 
-| :exclamation: This project is in active development and may break in the future.<br>Please report issues and contribute improvements to help. |
+| :exclamation: This project is deprecated.<br>The module has [moved to k6 core as `k6/execution`](https://github.com/grafana/k6/releases/tag/v0.34.0). |
 |------|
 
 
